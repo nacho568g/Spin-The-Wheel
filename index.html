@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="google-site-verification" content="T8m6LrHA43J64UqglSW_uRONfj08qXugu8-OOLEVfLg" />
+<title>Spin the Name - Ruleta</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@700&display=swap');
+  body { background: white; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #333; margin: 0; }
+  header { background: #1e90ff; color: white; padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; }
+  header h1 { margin: 0; font-size: 1.8rem; }
+  nav button { background: white; color: #1e90ff; font-weight: 600; border: none; border-radius: 4px; padding: 0.5rem 1rem; margin-left: 0.5rem; cursor: pointer; }
+  nav button:hover { background: #e0f0ff; }
+  .customize-box { display: none; margin-top: 1rem; text-align: left; max-width: 500px; margin-inline: auto; }
+  .customize-box label { display: block; margin-bottom: 0.5rem; }
+  .customize-box input { width: 100%; padding: 0.5rem; margin-bottom: 1rem; }
+  #controls { margin: 2rem auto; text-align: center; }
+  input[type="text"] { padding: 0.6rem 1rem; font-size: 1.1rem; border: 2px solid #1e90ff; border-radius: 6px; width: 250px; margin-right: 10px; }
+  button { padding: 0.6rem 1.3rem; font-size: 1.1rem; border: none; border-radius: 6px; background: #1e90ff; color: white; cursor: pointer; margin: 0 5px 5px 0; }
+  #mainContainer { display: flex; justify-content: center; gap: 30px; align-items: flex-start; flex-wrap: wrap; }
+  #canvasContainer { position: relative; width: 500px; height: 500px; }
+  canvas { border: 3px solid #1e90ff; border-radius: 50%; background: #f9f9f9; }
+  #pointer { position: absolute; top: -20px; left: 50%; margin-left: -10px; width: 0; height: 0; border-left: 10px solid transparent; border-right: 10px solid transparent; border-bottom: 20px solid #1e90ff; }
+  #sidebar { width: 250px; text-align: left; }
+  .nameItem { display: flex; justify-content: space-between; background: #f0f8ff; padding: 6px 10px; margin-bottom: 6px; border-radius: 6px; }
+  .removeBtn { background: #ff6b6b; border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; }
+  #result { margin-top: 20px; font-size: 1.8rem; font-weight: 700; color: #28a745; min-height: 40px; }
+  #roundHistory { margin-top: 1rem; padding-top: 0.5rem; border-top: 1px solid #ddd; font-size: 0.95rem; max-height: 220px; overflow-y: auto; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>SPIN THE NAME!</h1>
+  <nav>
+    <button id="headerNewBtn">New</button>
+    <button onclick="toggleCustomize()">Customize</button>
+    <button onclick="saveWinner()">Save Result</button>
+  </nav>
+</header>
+
+<div class="customize-box" id="customizeBox">
+  <label for="lineWidth">Line Width (px):</label>
+  <input type="number" id="lineWidth" value="4" min="1" max="20" />
+  <label for="spinDuration">Spin Duration (seconds):</label>
+  <input type="number" id="spinDuration" value="4" min="1" max="10" />
+  <button onclick="applyCustomize()">Save</button>
+</div>
+
+<div id="controls">
+  <input type="text" id="nameInput" placeholder="Enter a name" />
+  <button onclick="addName()">Add</button>
+  <button onclick="newRoundAndReset()">New</button>
+  <button onclick="spin()" id="spinBtn">🎯 Spin</button>
+</div>
+
+<div id="mainContainer">
+  <div id="canvasContainer">
+    <div id="pointer"></div>
+    <canvas id="wheel" width="500" height="500"></canvas>
+  </div>
+  <div id="sidebar">
+    <div><strong>Names List</strong></div>
+    <div id="namesList"></div>
+    <div id="result"></div>
+    <div id="roundHistory"></div>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('wheel');
+const ctx = canvas.getContext('2d');
+const radius = canvas.width / 2;
+const colors = ['#ff6b6b', '#ffa94d', '#f9ca24', '#48dbfb', '#1dd1a1', '#5f27cd', '#ff9ff3', '#54a0ff'];
+
+let names = [];
+let startAngle = 0;
+let arc = 0;
+let spinTimeout = null;
+let spinAngleStart = 0;
+let spinTime = 0;
+let spinTimeTotal = 4000;
+let lineWidth = 4;
+let round = 1;
+let roundHistoryData = [];
+const fontFamily = "'Poppins', sans-serif";
+
+function drawWheel() {
+  if (names.length === 0) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    return;
+  }
+  arc = (2 * Math.PI) / names.length;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.lineWidth = lineWidth;
+  ctx.strokeStyle = 'black';
+  ctx.font = `bold 28px ${fontFamily}`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  for (let i = 0; i < names.length; i++) {
+    const angle = startAngle + i * arc;
+    ctx.fillStyle = colors[i % colors.length];
+    ctx.beginPath();
+    ctx.moveTo(radius, radius);
+    ctx.arc(radius, radius, radius - 10, angle, angle + arc, false);
+    ctx.lineTo(radius, radius);
+    ctx.fill();
+    ctx.stroke();
+    ctx.save();
+    ctx.fillStyle = 'black';
+    const textRadius = radius * 0.7;
+    const textAngle = angle + arc / 2;
+    ctx.translate(
+      radius + Math.cos(textAngle) * textRadius,
+      radius + Math.sin(textAngle) * textRadius
+    );
+    ctx.rotate(textAngle + Math.PI / 2);
+    ctx.fillText(names[i], 0, 0);
+    ctx.restore();
+  }
+}
+
+function updateNamesList() {
+  const listDiv = document.getElementById('namesList');
+  listDiv.innerHTML = '';
+  names.forEach((name, index) => {
+    const div = document.createElement('div');
+    div.className = 'nameItem';
+    div.innerHTML = `${name} <button class="removeBtn" onclick="removeName(${index})">X</button>`;
+    listDiv.appendChild(div);
+  });
+}
+
+function addName() {
+  const input = document.getElementById('nameInput');
+  const name = input.value.trim();
+  if (name) {
+    names.push(name);
+    input.value = '';
+    drawWheel();
+    updateNamesList();
+    document.getElementById('result').innerText = '';
+  }
+}
+
+function removeName(index) {
+  names.splice(index, 1);
+  drawWheel();
+  updateNamesList();
+  document.getElementById('result').innerText = '';
+}
+
+function spin() {
+  if (names.length === 0) {
+    alert('Please add at least one name');
+    return;
+  }
+  spinAngleStart = Math.random() * 10 + 10;
+  spinTime = 0;
+  spinTimeTotal = parseInt(document.getElementById('spinDuration').value) * 1000;
+  lineWidth = parseInt(document.getElementById('lineWidth').value);
+  document.getElementById('spinBtn').disabled = true;
+  rotateWheel();
+}
+
+function rotateWheel() {
+  spinTime += 30;
+  if (spinTime >= spinTimeTotal) {
+    stopRotateWheel();
+    return;
+  }
+  const spinAngle = spinAngleStart * (1 - spinTime / spinTimeTotal);
+  startAngle += (spinAngle * Math.PI / 180);
+  drawWheel();
+  spinTimeout = setTimeout(rotateWheel, 30);
+}
+
+function stopRotateWheel() {
+  clearTimeout(spinTimeout);
+  const degrees = startAngle * 180 / Math.PI + 90;
+  const arcd = arc * 180 / Math.PI;
+  const index = Math.floor((360 - (degrees % 360)) / arcd);
+  const winner = names[index];
+  document.getElementById('result').innerText = 'Winner: ' + winner + ' 🎉';
+  document.getElementById('spinBtn').disabled = false;
+}
+
+function toggleCustomize() {
+  const box = document.getElementById('customizeBox');
+  box.style.display = box.style.display === 'none' ? 'block' : 'none';
+}
+
+function saveWinner() {
+  const result = document.getElementById('result').innerText;
+  if (result.includes('Winner')) {
+    const name = result.split(': ')[1];
+    const alreadySaved = roundHistoryData.includes(`Round ${round} winner: ${name}`);
+    if (!alreadySaved) {
+      const roundDiv = document.getElementById('roundHistory');
+      const entry = document.createElement('div');
+      entry.innerText = `Round ${round} winner: ${name}`;
+      roundDiv.appendChild(entry);
+      roundHistoryData.push(`Round ${round} winner: ${name}`);
+      round++;
+    }
+  }
+}
+
+function newRoundAndReset() {
+  names = [];
+  startAngle = 0;
+  document.getElementById('result').innerText = '';
+  updateNamesList();
+  drawWheel();
+}
+
+function newFullReset() {
+  if (confirm('¿Seguro que quieres restablecer TODO? Se perderán las partidas guardadas.')) {
+    names = [];
+    startAngle = 0;
+    round = 1;
+    roundHistoryData = [];
+    document.getElementById('roundHistory').innerHTML = '';
+    document.getElementById('result').innerText = '';
+    updateNamesList();
+    drawWheel();
+  }
+}
+
+function applyCustomize() {
+  const lw = parseInt(document.getElementById('lineWidth').value);
+  const sd = parseInt(document.getElementById('spinDuration').value) * 1000;
+  if (!isNaN(lw) && lw > 0) lineWidth = lw;
+  if (!isNaN(sd) && sd > 0) spinTimeTotal = sd;
+  drawWheel();
+}
+
+document.getElementById('lineWidth').addEventListener('input', e => {
+  const val = parseInt(e.target.value);
+  if (!isNaN(val) && val > 0) {
+    lineWidth = val;
+    drawWheel();
+  }
+});
+document.getElementById('spinDuration').addEventListener('input', e => {
+  const val = parseInt(e.target.value);
+  if (!isNaN(val) && val > 0) {
+    spinTimeTotal = val * 1000;
+  }
+});
+
+document.getElementById('headerNewBtn').addEventListener('click', newFullReset);
+
+drawWheel();
+updateNamesList();
+</script>
+
+<footer style="margin-top: 3rem; background: #f8f9fa; padding: 2rem; text-align: center; font-size: 0.9rem; color: #555;">
+  <div>
+    <p><strong>How to Use</strong><br>
+    Enter the names you want, then click "🎯 Spin" to pick a random winner!</p>
+    <p><strong>Privacy Policy</strong><br>
+    We do not collect or store any names or data you enter. Everything runs locally in your browser.</p>
+  </div>
+</footer>
+</body>
+</html>
